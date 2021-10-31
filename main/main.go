@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"crpc"
+
 	//"fmt"
 	"log"
 	"net"
@@ -45,7 +47,8 @@ func main() {
 			defer wg.Done()
 			args := &Args{Num1: i, Num2: i * i}
 			var reply int
-			if err := client.Call("Foo.Sum", args, &reply); err != nil {
+			ctx, _ := context.WithTimeout(context.Background(), time.Second)
+			if err := client.Call(ctx, "Foo.Sum", args, &reply); err != nil {
 				log.Fatal("call Foo.Sum error", err)
 			}
 			log.Println(reply)
