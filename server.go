@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"reflect"
 	"strings"
 	"sync"
@@ -20,16 +21,15 @@ const MagicNumber = 0x3bef5c
 
 type Option struct {
 	MagicNumber    int
-	CodecType      codec.Type
-	ConnectTimeout time.Duration
-	HandleTimeout  time.Duration
+	CodecType      codec.Type    //编解码器的处理类型
+	ConnectTimeout time.Duration //链接超时时间
+	HandleTimeout  time.Duration //处理超时时间
 } //规定编码,确定唯一请求
 
 var DefaultOption = &Option{
 	MagicNumber:    MagicNumber,
 	CodecType:      codec.GobType,
 	ConnectTimeout: time.Second * 10,
-	HandleTimeout:  time.Second,
 }
 
 func NewServer() *Server {
@@ -147,7 +147,7 @@ func (server *Server) sendResponse(cc codec.Codec, h *codec.Header, body interfa
 	}
 }
 
-//处理请求
+//处理请求,通过timeout控制超时时间
 func (server *Server) handleRequest(cc codec.Codec, req *request, sending *sync.Mutex, wg *sync.WaitGroup, timeout time.Duration) {
 	defer wg.Done()
 	called := make(chan struct{})
@@ -312,4 +312,35 @@ func (server *Server) findService(serviceMethod string) (svc *service, mtype *me
 		err = errors.New("rpc server: can't find method: " + methodName)
 	}
 	return
+}
+
+const (
+	connected        = "200 Connected to  CRPC"
+	defaultRPCPath   = "/_cprc_"
+	defaultDebugPath = "debug/crpc"
+)
+
+func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if req.Method != "CONNECT" {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_, _ = io.WriteString(w, "405 must CONNECT\n")
+		return
+	}
+	conn, _, err := w.(http.Hijacker).Hijack()
+	if err != nil {
+		log.Println("rpc hijacking", req.RemoteAddr, ":", err.Error())
+	}
+	_, _ = io.WriteString(conn, "HTTP/1.0 "+connected+"\n")
+	server.ServeConn(conn, time.Second*5)
+}
+
+func (server *Server) HandleHTTP() {
+	http.Handle(defaultRPCPath, server)
+	http.Handle(defaultDebugPath, debugHTTP{Server: server})
+	log.Println("rpc server debug path:", defaultDebugPath)
+}
+
+func HandleHTTP() {
+	DefaultServer.HandleHTTP()
 }
