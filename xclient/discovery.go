@@ -31,7 +31,7 @@ type MutiServerDiscovery struct {
 	index   int          //轮询索引
 }
 
-//初始化MutiserverDiscovery
+//新建MutiserverDiscovery
 func NewMuilServerDiscovery(servers []string) *MutiServerDiscovery {
 	d := &MutiServerDiscovery{
 		servers: servers,
